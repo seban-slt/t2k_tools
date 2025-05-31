@@ -34,4 +34,74 @@ Dokładny opis formatu Turbo 2000/KSO/2001 można znaleźć tutaj: [Atariki: KSO
 ## Przykładowe użycie
 
 ```bash
-python3 extract_t2k.py input.hex output.xex
+python3 extract_t2k.py input_file.hex
+```
+
+## Przykład użycia
+
+Poniżej znajduje się przykładowy przebieg konwersji i sprawdzenia pliku z kasety Turbo 2000:
+
+```text
+$ ./a8cas-util.pl conv -t turbo2000 hobby_tronic_90.wav hobby_tronic.hex
+Starting ecasound... started.
+SUMMARY: Data blocks: 28 (0 Errors).
+86 HEX blocks stored in file hobby_tronic.hex.
+
+$ ./extract_t2k.py hobby_tronic.hex
+nazwa pliku T2K: "HOBBY TRO."
+```
+
+Po konwersji możemy podejrzeć strukturę wygenerowanego pliku za pomocą ulubionego narzędzia, w moim przypadku jest to [chkxex](https://github.com/seban-slt/tcx_tools/blob/master/chkxex.py) który kiedyś napisałem jako pomoc przy analizowaniu plików z Turbo Copy 3/4. `chkxex` jest częścią pakietu [TCX Tools](https://github.com/seban-slt/tcx_tools)
+
+```text
+$ chkxex hobby_tronic.xex
+Input file is hobby_tronic.xex and the file size is 80140 bytes.
+
+Header is: $ffff
+block 001: $014f-$0165 ($0017)
+block 002: $02e2-$02e3 ($0002) ---> INIT $014f
+Header is: $ffff
+block 003: $0180-$0195 ($0016)
+Header is: $ffff
+block 004: $0480-$061d ($019e)
+Header is: $ffff
+block 005: $0165-$0179 ($0015)
+block 006: $02e2-$02e3 ($0002) ---> INIT $0165
+Header is: $ffff
+block 007: $9a77-$bbff ($2189)
+Header is: $ffff
+block 008: $017e-$017f ($0002)
+block 009: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 010: $9d59-$bbff ($1ea7)
+Header is: $ffff
+block 011: $017e-$017f ($0002)
+block 012: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 013: $5ccc-$bbff ($5f34)
+Header is: $ffff
+block 014: $017e-$017f ($0002)
+block 015: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 016: $8ea0-$bbff ($2d60)
+Header is: $ffff
+block 017: $017e-$017f ($0002)
+block 018: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 019: $aada-$bbff ($1126)
+Header is: $ffff
+block 020: $017e-$017f ($0002)
+block 021: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 022: $8d2b-$bbff ($2ed5)
+Header is: $ffff
+block 023: $017e-$017f ($0002)
+block 024: $02e2-$02e3 ($0002) ---> INIT $0480
+Header is: $ffff
+block 025: $9243-$bbff ($29bd)
+Header is: $ffff
+block 026: $017e-$017f ($0002)
+block 027: $02e0-$02e1 ($0002) --->  RUN $0480
+
+File hobby_tronic.xex is OK!
+```
