@@ -12,7 +12,7 @@ To repozytorium będzie stopniowo się rozrastać — w miarę odnajdywania i po
 
 ## 🔧 EXTRACT_T2K
 
-Jednym z dostępnych narzędzi jest `extract_t2k` – prosty skrypt w Pythonie umożliwiający konwersję pliku `.hex`, zawierającego bloki typu **PMWD** (wygenerowanego np. przez [a8cas-util](http://www.arus.net.pl/FUJI/a8cas-util/)), do postaci binarnej.
+Jednym z dostępnych narzędzi jest `extract_t2k` – prosty skrypt w Pythonie umożliwiający konwersję pliku `.hex`, zawierającego bloki typu **PWMD** (wygenerowanego np. przez [a8cas-util](http://www.arus.net.pl/FUJI/a8cas-util/)), do postaci binarnej.
 
 ### Cechy:
 
