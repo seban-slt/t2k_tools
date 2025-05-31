@@ -49,9 +49,39 @@ SUMMARY: Data blocks: 28 (0 Errors).
 
 $ ./extract_t2k.py hobby_tronic.hex
 nazwa pliku T2K: "HOBBY TRO."
+
+Przetwarzam blok nr 001 o długości 3072 bajtów.
+Przetwarzam blok nr 002 o długości 3072 bajtów.
+Przetwarzam blok nr 003 o długości 3072 bajtów.
+Przetwarzam blok nr 004 o długości 3072 bajtów.
+Przetwarzam blok nr 005 o długości 3072 bajtów.
+Przetwarzam blok nr 006 o długości 3072 bajtów.
+Przetwarzam blok nr 007 o długości 3072 bajtów.
+Przetwarzam blok nr 008 o długości 3072 bajtów.
+Przetwarzam blok nr 009 o długości 3072 bajtów.
+Przetwarzam blok nr 010 o długości 3072 bajtów.
+Przetwarzam blok nr 011 o długości 3072 bajtów.
+Przetwarzam blok nr 012 o długości 3072 bajtów.
+Przetwarzam blok nr 013 o długości 3072 bajtów.
+Przetwarzam blok nr 014 o długości 3072 bajtów.
+Przetwarzam blok nr 015 o długości 3072 bajtów.
+Przetwarzam blok nr 016 o długości 3072 bajtów.
+Przetwarzam blok nr 017 o długości 3072 bajtów.
+Przetwarzam blok nr 018 o długości 3072 bajtów.
+Przetwarzam blok nr 019 o długości 3072 bajtów.
+Przetwarzam blok nr 020 o długości 3072 bajtów.
+Przetwarzam blok nr 021 o długości 3072 bajtów.
+Przetwarzam blok nr 022 o długości 3072 bajtów.
+Przetwarzam blok nr 023 o długości 3072 bajtów.
+Przetwarzam blok nr 024 o długości 3072 bajtów.
+Przetwarzam blok nr 025 o długości 3072 bajtów.
+Przetwarzam blok nr 026 o długości 3072 bajtów.
+Przetwarzam blok nr 027 o długości 0268 bajtów.
+
+Operacja zakończona, plik 'hobby_tronic.xex' o długości 80140 bajtów zapisano.
 ```
 
-Po konwersji możemy podejrzeć strukturę wygenerowanego pliku za pomocą ulubionego narzędzia, w moim przypadku jest to [chkxex](https://github.com/seban-slt/tcx_tools/blob/master/chkxex.py) który kiedyś napisałem jako pomoc przy analizowaniu plików z Turbo Copy 3/4. `chkxex` jest częścią pakietu [TCX Tools](https://github.com/seban-slt/tcx_tools)
+Po konwersji możemy podejrzeć strukturę wygenerowanego pliku za pomocą ulubionego narzędzia, w moim przypadku jest to [chkxex](https://github.com/seban-slt/tcx_tools/blob/master/chkxex.py) który kiedyś napisałem jako pomoc przy analizowaniu plików z Turbo Copy 3/4. `chkxex` jest częścią pakietu [TCX Tools](https://github.com/seban-slt/tcx_tools).
 
 ```text
 $ chkxex hobby_tronic.xex
