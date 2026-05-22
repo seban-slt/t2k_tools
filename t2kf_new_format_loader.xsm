@@ -1,0 +1,461 @@
+; *** Turbo 2000F - New Format Loader ***
+;
+; this optimized version done by Seban/Slight, summer 2026
+;
+; - based on original Turbo 2000F "new format loader" 
+; - this loader is located at lower memory region ($700)
+;
+; v.0.1 - MemLO is at $8A8
+;
+
+; system equates
+
+SET_REQ_SYNC	equ	[sync_wait+1]
+STACK_PTR	equ	[restore_stack+1]
+
+; zp variables
+
+STATUS		equ	$30
+CHKSUM		equ	$31
+BUFRLO		equ	$32
+BUFRHI		equ	$33
+BFENLO		equ	$34
+BFENHI		equ	$35
+ERRNO		equ	$49
+
+; OS VARIABLES
+
+RUNAD		equ	$02e0
+INITAD		equ	$02e2
+SDMCTL		equ	$022f			; shadow of DMA Control register
+
+; Hardware registers
+
+COLBK		equ	$d01a			; Background color
+CONSOL		equ	$d01f			; CONSOLE register
+DMACTL		equ	$d400			; DMA Control register
+IRQST		equ	$d20e			; POKEY IRQ status register
+PACTL		equ	$d302			; PORTA control register
+SKSTAT		equ	$d20f			; Serial & Keyboard Status Register (R)
+
+; Start of code
+;
+		org	$4000			; code will be loaded here
+ldr_load_area	equ	*
+
+		org	 r:$0700		; code will be relocated here
+ldr_reloc_area	equ	*
+
+ldr_main	jsr	segment_init?setup	; play the tape, clear INITAD vector and set long sync tone before 1st segment
+
+		lda	#<buff_hdr		; set load address to "header buffer"
+		sta	BUFRLO
+		lda	#>buff_hdr
+		sta	BUFRHI
+
+		lda	#$06			; load 1st six bytes of file
+		ldx	#$00
+		jsr	load_N_bytes
+		bmi	read_error
+		
+		ldx	#$02			; skip 1st two bytes ($FF,$FF binary file identifier)
+		
+		lda	buff_hdr,X		; assume RUN vector is 1st block starting address
+		sta	RUNAD
+		lda	buff_hdr+1,X
+		sta	RUNAD+1
+
+seg_load_loop	lda	#$02			; allow shorter sync tone length between remaining data blocks
+		sta	SET_REQ_SYNC
+		
+		jsr	load_segment
+		bmi	read_error
+		
+		jsr	segment_init		; execute INIT vector if set
+		
+		lda	#<buff_hdr		; init load pointer to "header buffer"
+		sta	BUFRLO
+		lda	#>buff_hdr
+		sta	BUFRHI
+		
+		lda	#$04			; load 4 bytes into buffer
+		ldx	#$00
+		jsr	load_N_bytes
+		bmi	read_error
+
+; check segment header for EoF sequence
+
+		ldx	#$03			; check for end of data marker ($FF,$FF,$FF,$FF)
+?chk_loop	lda	buff_hdr,X
+		cmp	#$FF
+		beq	?chk_next		; when current byte is $FF, check next bytes
+
+?not_eof	ldx	#$00
+		beq	seg_load_loop		; data segment (not EoF), so load next one!
+
+?chk_next	dex
+		bpl	?chk_loop
+	
+; EoF seq. detected, so run loaded file
+
+		jsr	tape_stop
+		jmp	(RUNAD)
+
+; handle read error 
+
+read_error	jsr	tape_stop
+
+		lda	#$21		; narrow screen
+		sta	$22f
+		sta	$26f		; disable any GTIA mode if enabled! (some files sets GTIA modes during loading!)
+
+		lda	#<err_dl	; setup Display-List
+		sta	$230
+		lda	#>err_dl
+		sta	$231
+
+?err_lp		lda	$d40b		; color bar over the "* LOAD ERROR *" message
+		asl	@
+		sta	$d016
+		jmp	?err_lp
+
+; subroutine loads data segment described by header
+
+load_segment	lda	buff_hdr+0,x		; setup load start address
+		sta	BUFRLO
+		lda	buff_hdr+1,x
+		sta	BUFRHI
+		
+		lda	buff_hdr+2,x		; setup load end address
+		sta	BFENLO
+		lda	buff_hdr+3,x
+		sta	BFENHI
+		
+		inc	BFENLO			; adjust end address (+1)
+		bne 	*+4
+		inc 	BFENHI
+		
+		jsr	read_block		; read the block
+		tya
+		rts
+
+load_N_bytes	clc				; calculate end address from byte count
+		adc	BUFRLO			; using the previously set buffer address
+		sta	BFENLO
+		txa
+		adc	BUFRHI
+		sta	BFENHI
+		
+		jsr	read_block		; read the block
+		tya
+		rts
+
+segment_init	lda	INITAD			;  check whether INITAD is set
+		ora 	INITAD+1
+		beq	?no_init
+
+; if non-zero then execute code pointed to by INITAD
+
+		jsr	tape_stop	; stop the tape motor, restore IRQ/NMI, video DMA
+		jsr	call_init_seg	; call INITAD code ; L08CE
+?setup		jsr	tape_play	; start the motor, disable IRQ/NMI and turn off video DMA ; L08E5
+
+		lda	#$80		; long sync tone required after INIT
+		sta	SET_REQ_SYNC
+
+;		lda	#$00
+		asl	@		; ($80 << 1) = 0 , so one byte saved! :D
+		sta	INITAD		; clear the INITAD vector
+		sta	INITAD+1
+					; ! Warning! Do not place code here! (set_initad is used)
+?no_init	rts
+
+call_init_seg	jmp	(INITAD)
+		
+tape_play	lda	#$00		; disable screen DMA
+		sta	DMACTL
+		lda	#$34		; start the tape motor
+		sta	PACTL
+
+		sei			; disable IRQ/NMI and turn off OS-ROM
+		inc	$d40e		
+
+		rts
+
+tape_stop	lda	SDMCTL		; restore screen DMA
+		sta	DMACTL
+		
+		lda	#$3C		; stop the MOTOR
+		sta	PACTL
+		
+		lsr	$d40e		; enable NMI (VBL only)
+		cli			; enable IRQ
+		rts
+
+init_read	tsx			; get actual stack pointer
+		inx			; adjust 
+		inx
+		stx	STACK_PTR	; store
+		
+		lda	#$00		; clear checksum value
+		sta	CHKSUM
+		rts
+
+err_break	ldy	#$80		; assume status = $80 (user BREAK)
+;		jmp	restore_stack	; !!! not needed when restore_stack is subroutine is below.
+
+restore_stack	ldx	#0
+		txs
+		rts
+
+read_block	jsr	init_read
+
+sync_wait	ldy	#$02		; Warning! Remember SET_REQ_SYNC is defined as sync_wait+1
+
+		lda	#$FF		
+		sta	ERRNO		; set SYNC allowed flag
+
+?sync_loop	ldx	#$00
+
+?wait_one_lp	lda	IRQST
+		bpl	err_break
+
+		lda	#$10
+		bit	SKSTAT
+		bne	?wait_one_lp	; L0928
+
+		ldx	#$00		; clear pulse len count (X reg.)
+		stx 	COLBK		; set black background color
+
+?wait_zero_lp	inx
+		bmi	sync_wait
+		
+		bit	SKSTAT
+		beq	?wait_zero_lp	; L0939
+
+		lda	#$38		; red bars when sync loop
+		sta	COLBK
+
+		cpx	#$36		; check "sync" pulse duration
+		bcc	sync_wait	; <$36, not sync pulse! restart sync loop! (old bcc read_block) 
+
+		dey
+		bne	?sync_loop	; L0926
+
+; sync done
+
+blk_read_loop	jsr	get_byte	; read block byte
+		
+		lda	STATUS		; gett byte value
+		sta	(BUFRLO),Y	; store in buffer
+		
+		clc			; update checksum
+		adc	CHKSUM
+		sta	CHKSUM
+		
+		inc	BUFRLO		; incr. dest. pointer
+		bne	*+4
+		inc	BUFRHI
+
+		lda	BUFRLO		; check for end of block
+		cmp	BFENLO
+		lda	BUFRHI
+		sbc	BFENHI
+		bcc	blk_read_loop
+		
+		jsr	get_byte	; read CRC byte
+		
+		ldy	#$8F		; assume status = $8f -> (#143 - CRC error)
+		
+		lda	STATUS		; CRC check
+		cmp	CHKSUM
+		bne	restore_stack	; checksum error
+		
+		ldy	#$01		; status = $01 -> no error
+		bne	restore_stack	; all OK! (status = #1)
+
+; ------------------------------------------------------------------------------
+;
+; get_byte 
+;
+
+get_byte	ldy	#$08		; bits to read!
+
+?wait_one_lp	bit	IRQST
+		bpl	?exit_brk
+		
+		lda	#$10
+		bit	SKSTAT		; check SERIAL_IN state
+		bne	?wait_one_lp	; loop when "1" 		;L096F
+	
+; failing edge detected ( ~~~\___)
+		ldx	#$00		; clear pulse count (X reg.)
+		stx	COLBK		; black border color
+
+?wait_zero_lp	inx			; inc. pulse len. counter
+		bmi	?err_140	; >127 --> pulse to long! (error 140)		; L09A2
+		
+		bit	SKSTAT
+		beq	?wait_zero_lp	; wait for "1" (rising edge again)		; L0980
+
+		lda	#$88		; green bars in get-byte stage
+		sta	COLBK
+	
+		cpx	#$36		; check pulse len (>$36 means sync pulse)
+		bcs	?sync_allowed	; sync? check if allowed! 		; L099E
+		
+		ror	ERRNO		; 1st non-sync pulse means no more sync pulses allowed!
+		
+		cpx	#$1C		; check pulse len (<$1c means 0, otherwise 1)
+		rol	STATUS		; shift out the comparison result (carry bit) 
+
+		dey			; decrement bit-loop counter
+		bne	?wait_one_lp
+		rts
+
+?exit_brk	jmp	err_break
+
+?sync_allowed	bit	ERRNO		; check if SYNC allowed
+		bmi	?wait_one_lp	; 7th bit of ERRNO set? still in SYNC state! repeat the loop!	; L096F
+
+?err_140	ldy	#$8C		; error #140 (invalid pulse detected)
+		jmp	restore_stack	; L0904
+
+buff_hdr	dta	$00,$00,$00,$00,$00,$00
+
+;			  0123456789abcdef
+err_msg		dta	d' * LOAD ERROR * ' 
+err_dl		dta	$70,$70,$70,$47,a(err_msg),$41,a(err_dl)
+
+ldr_reloc_end	equ	*
+ldr_size	equ	[ldr_reloc_end-ldr_reloc_area]
+ldr_neg_size	equ	[$10000-ldr_size]
+		
+		org	[ldr_load_area+ldr_size]
+
+; -----------------------------------------------------------------------------
+;
+; main code start here
+
+main		ldy	#28				; set position for MEMLO value print-out
+
+		lda	#>ldr_reloc_end			; print Hi-Byte
+		jsr	put_hex
+		lda	#<ldr_reloc_end			; print Lo-byte
+		jsr	put_hex
+
+		ldy	#39
+?cmsg		lda	info_line,y			; copy message line...
+		sta	($58),y				; to screen memory
+		dey
+		bpl	?cmsg
+
+		lda	#$e0				; set "info display" delay
+		sta	$14
+
+; relocate the loader do the dest. address
+
+		mwa	#[ldr_neg_size] $30		; load loader size
+		mwa	#[ldr_load_area] $32		; load src address
+		mwa	#[ldr_reloc_area] $34		; load dst address
+
+		ldy	#0				; clear Y reg.
+
+?cpl		lda	($32),y				; load byte from source pointer
+		sta	($34),y				; stora at dest.
+
+		inc	$32				; incr. scr pointer
+		bne	*+4
+		inc	$33
+
+		inc	$34				; incr. dst pointer
+		bne	*+4
+		inc	$35
+
+		inc	$30				; incr. loop-counter
+		bne	?cpl
+		inc	$31
+		bne	?cpl
+
+		lda	$14				; add some delay (wait for RTC overflow)
+		bne	*-2
+
+		ldx	#[mem_clr_len-1]		; relocate mem-clear subroutine
+?mcp		lda	mem_clr_loc,x
+		sta	mem_clr,x
+		dex
+		bpl	?mcp
+
+		jmp	mem_clr				; execute relocated code
+
+; -----------------------------------------------------------------------------
+;
+; subroutine prints hex number on info line
+;
+
+put_hex		pha					; save value on stack
+		
+		lsr	@				; get upper nibble
+		lsr	@
+		lsr	@
+		lsr	@
+		
+		jsr	?put_nyb			; print nibble
+		
+		pla					; restore value
+		and	#$0f				; get lower nibble
+
+?put_nyb	cmp	#$0a				; value >9?
+		
+		sed					; enable "decimal" mode
+		adc	#'0'-32				; adjust value (use ANTIC screen codes)
+		cld					; clear "decimal mode"
+		
+		ora	#$80				; + inverse video
+		
+		sta	info_line,y			; save calculated value on info_line
+		iny					; advance offset
+		rts
+
+;			  0123456789012345678901234567890123456789
+info_line	dta	d' T2KF+ loader v.0.1  MemLO:$____  -SSL- '*
+
+; -----------------------------------------------------------------------------
+;
+; this procedure clears memory from MemLO (end of loader location) to $BBFF
+;
+; procedure is relocated to the line printer buffer during
+; the loader initialization and execution
+;
+
+mem_clr_loc	equ	*
+		org	r:$03c0
+
+mem_clr		lda	#0
+		ldx	#<ldr_reloc_end
+?mclr		sta	[>ldr_reloc_end*256],x
+		inx
+		bne	?mclr
+		inc	?mclr+2
+		ldy	?mclr+2
+		cpy	#$bc
+		bcc	?mclr
+
+?pclr		sta	$100,x				; clear zero page
+		sta	$400,x				; clear 4th page
+		sta	$500,x				; clear 5th page
+		sta	$600,x				; clear 6th page
+		cpx	#$80
+		bcc	*+4
+		sta	$00,x				; clear upper-half of zero page
+		inx
+		bne	?pclr
+		
+		dex					; $00-$01 = $FF
+		txs					; init stack pointer to $FF
+		jmp	ldr_main
+
+mem_clr_end	equ	*
+mem_clr_len	equ	[mem_clr_end-mem_clr]
+
+		run	main
