@@ -6,6 +6,14 @@
 ; - this loader is located at lower memory region ($700)
 ;
 ; v.0.1 - MemLO is at $8A8
+;  - initial version of the loader
+;
+; v.0.2 - MemLO is at $8AE
+;  - (SIO COMMMAND line is activated during read to ENABLE some turbo interfaces)
+;
+; TODO:
+;
+; - add auto-detection of K.S.O. interface (JOY #2) 
 ;
 
 ; system equates
@@ -36,6 +44,7 @@ CONSOL		equ	$d01f			; CONSOLE register
 DMACTL		equ	$d400			; DMA Control register
 IRQST		equ	$d20e			; POKEY IRQ status register
 PACTL		equ	$d302			; PORTA control register
+PBCTL		equ	$d303			; PORTA control register
 SKSTAT		equ	$d20f			; Serial & Keyboard Status Register (R)
 
 ; Start of code
@@ -174,8 +183,10 @@ call_init_seg	jmp	(INITAD)
 		
 tape_play	lda	#$00		; disable screen DMA
 		sta	DMACTL
-		lda	#$34		; start the tape motor
-		sta	PACTL
+		
+		lda	#$34
+		sta	PACTL		; start the tape motor
+		sta	PBCTL		; enable CMD line (activate turbo interfaces in SIO mode, e.g. AST/ATT/UM)
 
 		sei			; disable IRQ/NMI and turn off OS-ROM
 		inc	$d40e		
@@ -185,9 +196,10 @@ tape_play	lda	#$00		; disable screen DMA
 tape_stop	lda	SDMCTL		; restore screen DMA
 		sta	DMACTL
 		
-		lda	#$3C		; stop the MOTOR
-		sta	PACTL
-		
+		lda	#$3C
+		sta	PACTL		; motor off + DATA reg. select
+		sta	PBCTL		; and deactivate CMD line (disable turbo interface in SIO mode)
+
 		lsr	$d40e		; enable NMI (VBL only)
 		cli			; enable IRQ
 		rts
@@ -418,7 +430,7 @@ put_hex		pha					; save value on stack
 		rts
 
 ;			  0123456789012345678901234567890123456789
-info_line	dta	d' T2KF+ loader v.0.1  MemLO:$____  -SSL- '*
+info_line	dta	d' T2KF+ loader v.0.2  MemLO:$____  -SSL- '*
 
 ; -----------------------------------------------------------------------------
 ;
