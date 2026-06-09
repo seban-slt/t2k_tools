@@ -8,7 +8,14 @@ Przez lata pracy nad archiwizacją kaset zapisanych w różnych systemach (stand
 
 To repozytorium będzie stopniowo się rozrastać — w miarę odnajdywania i porządkowania skryptów oraz narzędzi, które tworzyłem na własne potrzeby podczas pracy z kasetami. Początkowo były to narzędzia pisane z myślą o prywatnym użytku, jednak uznałem, że skoro mogą się przydać także innym — warto się nimi podzielić.
 
+## Spis treści
+
+- [T2K_EXTRACT](#t2k_extract)
+- [T2K_NEW_FORMAT](#t2k_new_format)
+
 ---
+
+<a id="t2k_extract"></a>
 
 ## 🔧 T2K_EXTRACT
 
@@ -137,6 +144,8 @@ File hobby_tronic.xex is OK!
 ```
 
 ---
+
+<a id="t2k_new_format"></a>
 
 ## 🔧 T2K_NEW_FORMAT
 
