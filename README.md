@@ -10,9 +10,9 @@ To repozytorium będzie stopniowo się rozrastać — w miarę odnajdywania i po
 
 ---
 
-## 🔧 EXTRACT_T2K
+## 🔧 T2K_EXTRACT
 
-Jednym z dostępnych narzędzi jest `extract_t2k` – prosty skrypt w Pythonie umożliwiający konwersję pliku `.hex`, zawierającego bloki typu **PWMD** (wygenerowanego np. przez [a8cas-util](http://www.arus.net.pl/FUJI/a8cas-util/)), do postaci binarnej.
+Jednym z dostępnych narzędzi jest `t2k_extract` – prosty skrypt w Pythonie umożliwiający konwersję pliku `.hex`, zawierającego bloki typu **PWMD** (wygenerowanego np. przez [a8cas-util](http://www.arus.net.pl/FUJI/a8cas-util/)), do postaci binarnej.
 
 ### Cechy:
 
@@ -34,7 +34,7 @@ Dokładny opis formatu Turbo 2000/KSO/2001 można znaleźć tutaj: [Atariki: KSO
 ## Przykładowe użycie
 
 ```bash
-python3 extract_t2k.py input_file.hex
+python3 t2k_extract.py input_file.hex
 ```
 
 ## Przykład użycia
@@ -47,7 +47,7 @@ Starting ecasound... started.
 SUMMARY: Data blocks: 28 (0 Errors).
 86 HEX blocks stored in file hobby_tronic.hex.
 
-$ ./extract_t2k.py hobby_tronic.hex
+$ ./t2k_extract.py hobby_tronic.hex
 nazwa pliku T2K: "HOBBY TRO."
 
 Przetwarzam blok nr 001 o długości 3072 bajtów.
