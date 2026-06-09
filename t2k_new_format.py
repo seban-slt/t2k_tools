@@ -23,9 +23,12 @@ from pathlib import Path
 BYTE_RE = re.compile(r"^(?:\$|0x)?([0-9a-fA-F]{1,2})$")
 
 STD_BLOCK_DATA_SIZE = 3072
+DEFAULT_PWM_SAMPLE_RATE = 48000
+
+# Standardowe długości impulsów PWM używane przez Turbo 2000 przy 48000 Hz.
+# Dla innego sample rate, np. 44100 Hz, wartości impulsów trzeba przeliczyć.
 DEFAULT_BIT0_PULSE = 12
 DEFAULT_BIT1_PULSE = 24
-DEFAULT_PWM_SAMPLE_RATE = 48000
 DEFAULT_PWM_PILOT_PULSE = 48
 
 
@@ -59,6 +62,7 @@ class EncodeError(T2KFError):
     pass
 
 
+# Parsuje pojedynczy token bajtu zapisany jako hex.
 def parse_byte_token(tok: str) -> int:
     m = BYTE_RE.match(tok)
     if not m:
@@ -66,20 +70,24 @@ def parse_byte_token(tok: str) -> int:
     return int(m.group(1), 16)
 
 
+# Liczy prostą sumę kontrolną modulo 256.
 def checksum_mod256(data: bytes) -> int:
     return sum(data) & 0xFF
 
 
+# Odczytuje 16-bitową wartość little-endian z bufora.
 def u16le(data: bytes, offset: int = 0) -> int:
     return data[offset] | (data[offset + 1] << 8)
 
 
+# Zapisuje 16-bitową wartość jako dwa bajty little-endian.
 def put_u16le(value: int) -> bytes:
     if not 0 <= value <= 0xFFFF:
         raise ValueError(value)
     return bytes((value & 0xFF, value >> 8))
 
 
+# Formatuje bajty jako listę wartości hex oddzielonych spacjami.
 def hex_bytes(data: bytes) -> str:
     return " ".join(f"{b:02x}" for b in data)
 
@@ -88,6 +96,7 @@ def hex_bytes(data: bytes) -> str:
 # DECODER
 # ---------------------------------------------------------------------------
 
+# Wczytuje z pliku .hex wszystkie fizyczne bloki PWMD.
 def parse_pwmd_blocks(path: Path) -> list[PwmdBlock]:
     """
     Wyciąga tylko linie PWMD z tekstowego pliku .hex.
@@ -125,6 +134,7 @@ def parse_pwmd_blocks(path: Path) -> list[PwmdBlock]:
     return blocks
 
 
+# Sprawdza sumę kontrolną starego/standardowego bloku Turbo 2000.
 def verify_old_turbo_block(block: PwmdBlock, what: str) -> bytes:
     """
     Oryginalny/standardowy blok Turbo 2000:
@@ -149,6 +159,7 @@ def verify_old_turbo_block(block: PwmdBlock, what: str) -> bytes:
     return payload
 
 
+# Sprawdza sumę kontrolną i końcowe zero bloku NEW FORMAT.
 def verify_new_turbo_block(block: PwmdBlock, what: str) -> bytes:
     """
     Blok właściwy Turbo 2000F+ new format:
@@ -178,6 +189,7 @@ def verify_new_turbo_block(block: PwmdBlock, what: str) -> bytes:
     return payload
 
 
+# Dekoduje standardowy blok nazwy Turbo 2000.
 def decode_standard_name_block(block: PwmdBlock) -> str:
     """
     Standardowy blok nazwy Turbo 2000:
@@ -199,6 +211,7 @@ def decode_standard_name_block(block: PwmdBlock) -> str:
     return payload[2:12].decode("latin-1", errors="replace").rstrip(" ")
 
 
+# Dekoduje standardowy blok danych Turbo 2000.
 def decode_standard_data_block(block: PwmdBlock, what: str) -> tuple[int, bytes]:
     """
     Standardowy blok danych Turbo 2000:
@@ -225,6 +238,7 @@ def decode_standard_data_block(block: PwmdBlock, what: str) -> tuple[int, bytes]
     return data_len, payload[2:2 + data_len]
 
 
+# Wyciąga loader XEX z dwóch pierwszych bloków nagrania.
 def extract_loader_xex(blocks: list[PwmdBlock]) -> bytes:
     """
     Zwraca opcjonalny loader zapisany na początku taśmy w starym formacie.
@@ -246,6 +260,7 @@ def extract_loader_xex(blocks: list[PwmdBlock]) -> bytes:
     return loader_xex
 
 
+# Składa segmenty XEX z par nagłówek/dane w Turbo 2000F+ NEW FORMAT.
 def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) -> list[Segment]:
     """
     Dekoduje właściwą część Turbo 2000F+ NEW FORMAT do segmentów XEX.
@@ -327,13 +342,24 @@ def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) 
         segments.append(Segment(start=start_addr, end=end_addr, data=data))
 
         if verbose:
-            print_segment("segment", len(segments), hb.index, db.index, hb.line_no, db.line_no, start_addr, end_addr, len(data))
+            print_segment(
+                "segment",
+                len(segments),
+                hb.index,
+                db.index,
+                hb.line_no,
+                db.line_no,
+                start_addr,
+                end_addr,
+                len(data),
+            )
 
         i += 2
 
     raise DecodeError("brak końcowego bloku EOF: FF FF FF FF FC 00")
 
 
+# Wypisuje jedną linię opisu segmentu w trybie verbose.
 def print_segment(prefix: str, n: int, hb_index: int | None, db_index: int | None,
                   hb_line: int | None, db_line: int | None,
                   start_addr: int, end_addr: int, data_len: int) -> None:
@@ -363,12 +389,12 @@ def print_segment(prefix: str, n: int, hb_index: int | None, db_index: int | Non
         )
 
 
-
-
+# Sprawdza, czy segment obejmuje podany zakres adresów.
 def segment_contains_range(seg: Segment, start: int, end: int) -> bool:
     return seg.start <= start and seg.end >= end
 
 
+# Sprawdza, czy segment zawiera wektor INITAD.
 def segment_contains_initad(seg: Segment) -> bool:
     # INITAD is the two-byte vector at $02E2-$02E3.
     # A segment may be exactly $02E2-$02E3, but it may also be a combined
@@ -377,10 +403,13 @@ def segment_contains_initad(seg: Segment) -> bool:
     return segment_contains_range(seg, 0x02E2, 0x02E3)
 
 
+# Sprawdza, czy segment zawiera wektor RUNAD.
 def segment_contains_runad(seg: Segment) -> bool:
     # RUNAD is the two-byte vector at $02E0-$02E1.
     return segment_contains_range(seg, 0x02E0, 0x02E1)
 
+
+# Zapisuje listę segmentów do pliku XEX.
 def write_xex(path: Path, segments: list[Segment]) -> None:
     """Zapisuje segmenty jako klasyczny Atari DOS binary/XEX."""
     out = bytearray(b"\xff\xff")
@@ -397,6 +426,7 @@ def write_xex(path: Path, segments: list[Segment]) -> None:
 # ENCODER
 # ---------------------------------------------------------------------------
 
+# Czyta segmenty z pliku DOS binary/XEX.
 def read_xex_segments(path: Path) -> list[Segment]:
     """
     Czyta Atari DOS binary/XEX do listy segmentów.
@@ -446,16 +476,19 @@ def read_xex_segments(path: Path) -> list[Segment]:
     return segments
 
 
+# Buduje fizyczny blok danych w Turbo 2000F+ NEW FORMAT.
 def make_new_block(payload: bytes) -> bytes:
     # NEW FORMAT: payload + suma modulo 256 + końcowe 00.
     return payload + bytes((checksum_mod256(payload), 0x00))
 
 
+# Buduje fizyczny blok danych w standardowym Turbo 2000.
 def make_old_block(payload: bytes) -> bytes:
     # Standardowy Turbo 2000: payload + sama suma modulo 256.
     return payload + bytes((checksum_mod256(payload),))
 
 
+# Tworzy standardowy blok nazwy Turbo 2000.
 def make_standard_name_block(name: str) -> bytes:
     # Format standardowy: 00 FF + 10 bajtów nazwy dopełnionej spacjami + checksum.
     raw = name.encode("latin-1", errors="replace")[:10]
@@ -463,6 +496,7 @@ def make_standard_name_block(name: str) -> bytes:
     return make_old_block(b"\x00\xff" + raw)
 
 
+# Tworzy standardowy blok danych zawierający loader XEX.
 def make_standard_loader_block(loader_xex: bytes) -> bytes:
     if len(loader_xex) > STD_BLOCK_DATA_SIZE:
         raise EncodeError(
@@ -479,6 +513,7 @@ def make_standard_loader_block(loader_xex: bytes) -> bytes:
     return make_old_block(bytes(payload))
 
 
+# Wyznacza domyślną nazwę taśmową z nazwy pliku.
 def default_tape_name_from_path(path: Path) -> str:
     # Bezpieczna, przewidywalna nazwa do starego bloku nazwy: uppercase, max 10.
     s = path.stem.upper()
@@ -490,22 +525,26 @@ def default_tape_name_from_path(path: Path) -> str:
 class HexWriter:
     """Writer generujący tekstowy .hex z liniami pwmc/pwmd."""
 
+    # Inicjuje writer tekstowego formatu .hex.
     def __init__(self, fp, *, bit0: int = DEFAULT_BIT0_PULSE, bit1: int = DEFAULT_BIT1_PULSE):
         self.fp = fp
         self.bit0 = bit0
         self.bit1 = bit1
         self.block_no = 0
 
+    # Zapisuje nagłówek pliku .hex.
     def header(self, title: str) -> None:
         self.fp.write("A8CAS-HEX\n")
         self.fp.write(f"FUJI {title}\n")
         self.fp.write(f"pwms msb_first rising_edge_first {DEFAULT_PWM_SAMPLE_RATE}\n")
 
+    # Zapisuje linię pwmc opisującą impulsy pilota/synchronizacji.
     def pwmc(self, *args: int, count: int = 1) -> None:
         # Zapisujemy dokładnie w stylu plików z a8cas-util.pl.
         arg_s = " ".join(str(a) for a in args)
         self.fp.write(f"pwmc 00000 {arg_s} ; count={count}\n")
 
+    # Zapisuje linię pwmd z bajtami fizycznego bloku danych.
     def pwmd(self, data: bytes) -> None:
         self.block_no += 1
         # W blokach NEW FORMAT suma jest przed końcowym 00, w starych blokach
@@ -532,12 +571,14 @@ class CasWriter:
     PWMS_RISING_EDGE_FIRST = 0b10
     PWMS_MSB_FIRST = 0b100
 
+    # Inicjuje writer binarnego formatu CAS.
     def __init__(self, fp, *, bit0: int = DEFAULT_BIT0_PULSE, bit1: int = DEFAULT_BIT1_PULSE):
         self.fp = fp
         self.bit0 = bit0
         self.bit1 = bit1
         self.block_no = 0
 
+    # Zapisuje pojedynczy chunk CAS.
     def chunk(self, chunk_type: bytes, aux: int, data: bytes = b"") -> None:
         if len(chunk_type) != 4:
             raise EncodeError(f"CAS: chunk type musi mieć 4 bajty, jest {chunk_type!r}")
@@ -551,6 +592,7 @@ class CasWriter:
         self.fp.write(put_u16le(aux))
         self.fp.write(data)
 
+    # Zapisuje początkowe chunki FUJI i pwms.
     def header(self, title: str) -> None:
         # FUJI must be the first CAS chunk. Description is UTF-8.
         self.chunk(b"FUJI", 0, title.encode("utf-8"))
@@ -561,6 +603,7 @@ class CasWriter:
         flags = self.PWMS_RISING_EDGE_FIRST | self.PWMS_MSB_FIRST
         self.chunk(b"pwms", flags, put_u16le(DEFAULT_PWM_SAMPLE_RATE))
 
+    # Zapisuje chunk pwmc opisujący impulsy pilota/synchronizacji.
     def pwmc(self, *args: int, count: int = 1) -> None:
         # HexWriter receives: pulse,count[, pulse,count...].
         if len(args) % 2 != 0:
@@ -575,12 +618,14 @@ class CasWriter:
             data += put_u16le(pulses_count)
         self.chunk(b"pwmc", 0, bytes(data))
 
+    # Zapisuje chunk pwmd z bajtami fizycznego bloku danych.
     def pwmd(self, data: bytes) -> None:
         self.block_no += 1
         aux = self.bit0 | (self.bit1 << 8)
         self.chunk(b"pwmd", aux, data)
 
 
+# Wybiera format wyjściowy na podstawie opcji i rozszerzenia pliku.
 def output_format_from_args(output_path: Path, requested: str) -> str:
     """Rozstrzyga format zapisu przy --encode."""
     if requested != "auto":
@@ -591,6 +636,7 @@ def output_format_from_args(output_path: Path, requested: str) -> str:
     return "hex"
 
 
+# Otwiera plik wyjściowy i tworzy odpowiedni writer.
 def open_output_writer(output_path: Path, output_format: str):
     """Otwiera plik wyjściowy i dobiera writer zgodny z wybranym formatem."""
     if output_format == "hex":
@@ -602,6 +648,7 @@ def open_output_writer(output_path: Path, output_format: str):
     raise EncodeError(f"nieznany format wyjściowy: {output_format}")
 
 
+# Zapisuje zakodowany strumień Turbo 2000F+ NEW FORMAT.
 def write_encoded_file(
     output_path: Path,
     segments: list[Segment],
@@ -668,13 +715,24 @@ def write_encoded_file(
             w.pwmd(make_new_block(seg.data))
 
             if verbose:
-                print_segment("encoded", idx, None, None, None, None, seg.start, seg.end, len(seg.data))
+                print_segment(
+                    "encoded",
+                    idx,
+                    None,
+                    None,
+                    None,
+                    None,
+                    seg.start,
+                    seg.end,
+                    len(seg.data),
+                )
 
         # EOF: payload FF FF FF FF, checksum FC, trailing 00.
         w.pwmc(DEFAULT_PWM_PILOT_PULSE, 6)
         w.pwmd(make_new_block(b"\xff\xff\xff\xff"))
 
 
+# Uruchamia tryb kodowania XEX do HEX/CAS.
 def encode_command(args: argparse.Namespace) -> int:
     """Obsługa trybu XEX -> HEX/CAS."""
     segments = read_xex_segments(args.input)
@@ -698,6 +756,7 @@ def encode_command(args: argparse.Namespace) -> int:
     return 0
 
 
+# Uruchamia tryb dekodowania HEX do XEX.
 def decode_command(args: argparse.Namespace) -> int:
     """Obsługa trybu HEX -> XEX."""
     blocks = parse_pwmd_blocks(args.input)
@@ -751,12 +810,21 @@ def decode_command(args: argparse.Namespace) -> int:
     return 0
 
 
+# Buduje parser argumentów wiersza poleceń.
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Decode/encode Turbo 2000F+ new format .hex/.cas and Atari DOS binary/XEX."
     )
-    ap.add_argument("input", type=Path, help="wejściowy .hex dla dekodowania albo .xex dla --encode")
-    ap.add_argument("output", type=Path, help="wyjściowy .xex dla dekodowania albo .hex/.cas dla --encode")
+    ap.add_argument(
+        "input",
+        type=Path,
+        help="wejściowy .hex dla dekodowania albo .xex dla --encode",
+    )
+    ap.add_argument(
+        "output",
+        type=Path,
+        help="wyjściowy .xex dla dekodowania albo .hex/.cas dla --encode",
+    )
 
     ap.add_argument(
         "--encode",
@@ -793,7 +861,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--tape-name",
         metavar="NAME",
-        help="encode: nazwa do standardowego bloku nazwy, max 10 bajtów; domyślnie stem pliku output",
+        help=(
+            "encode: nazwa do standardowego bloku nazwy, max 10 bajtów; "
+            "domyślnie stem pliku output"
+        ),
     )
     ap.add_argument(
         "--title",
@@ -810,6 +881,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return ap
 
 
+# Główny punkt wejścia programu.
 def main() -> int:
     ap = build_arg_parser()
     args = ap.parse_args()
@@ -820,8 +892,15 @@ def main() -> int:
                 raise EncodeError("--skip-loader/--extract-loader mają sens tylko przy dekodowaniu")
             return encode_command(args)
 
-        if args.add_loader is not None or args.tape_name is not None or args.title is not None or args.format != "auto":
-            raise DecodeError("--add-loader/--tape-name/--title/--format mają sens tylko z --encode")
+        if (
+            args.add_loader is not None
+            or args.tape_name is not None
+            or args.title is not None
+            or args.format != "auto"
+        ):
+            raise DecodeError(
+                "--add-loader/--tape-name/--title/--format mają sens tylko z --encode"
+            )
         return decode_command(args)
 
     except T2KFError as e:
