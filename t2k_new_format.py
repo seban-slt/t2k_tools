@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+"""
+Konwerter Turbo 2000F+ NEW FORMAT.
+
+Narzędzie pracuje w dwóch kierunkach:
+  * decode: z tekstowego .hex wycina bloki PWMD i składa z nich XEX,
+  * encode: z DOS binary/XEX buduje strumień PWMD zapisywany jako .hex albo .cas.
+
+W praktycznych nagraniach new-format pierwszy blok nazwy i opcjonalny loader
+nadal używają starego/standardowego formatu Turbo 2000. Dopiero właściwe bloki
+programu mają układ NEW FORMAT: osobny nagłówek zakresu adresów, osobny blok
+danych oraz końcowy bajt 00 po sumie kontrolnej.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +31,8 @@ DEFAULT_PWM_PILOT_PULSE = 48
 
 @dataclass(frozen=True)
 class PwmdBlock:
+    """Jeden fizyczny blok danych PWMD odczytany z pliku .hex."""
+
     index: int          # 1-based pwmd block number in file
     line_no: int
     data: bytes        # bytes after: pwmd <zero> <one> ...
@@ -26,6 +40,8 @@ class PwmdBlock:
 
 @dataclass(frozen=True)
 class Segment:
+    """Jeden segment DOS binary/XEX: zakres adresów Atari plus dane."""
+
     start: int
     end: int
     data: bytes
@@ -73,6 +89,12 @@ def hex_bytes(data: bytes) -> str:
 # ---------------------------------------------------------------------------
 
 def parse_pwmd_blocks(path: Path) -> list[PwmdBlock]:
+    """
+    Wyciąga tylko linie PWMD z tekstowego pliku .hex.
+
+    Linie sterujące typu FUJI/pwms/pwmc są ważne dla nagrania taśmy, ale nie
+    niosą bajtów programu, więc dekoder danych może je bezpiecznie pominąć.
+    """
     blocks: list[PwmdBlock] = []
 
     for line_no, raw_line in enumerate(path.read_text(errors="replace").splitlines(), 1):
@@ -87,7 +109,7 @@ def parse_pwmd_blocks(path: Path) -> list[PwmdBlock]:
         if len(parts) < 4:
             raise DecodeError(f"linia {line_no}: za krótka linia pwmd")
 
-        # a8cas hex:
+        # hex:
         #   pwmd <bit0-pulse> <bit1-pulse> <bytes...>
         data = bytearray()
         for tok in parts[3:]:
@@ -204,6 +226,13 @@ def decode_standard_data_block(block: PwmdBlock, what: str) -> tuple[int, bytes]
 
 
 def extract_loader_xex(blocks: list[PwmdBlock]) -> bytes:
+    """
+    Zwraca opcjonalny loader zapisany na początku taśmy w starym formacie.
+
+    Układ obsługiwany przez tę funkcję to:
+      1. standardowy blok nazwy Turbo 2000,
+      2. standardowy blok danych zawierający loader XEX.
+    """
     if len(blocks) < 2:
         raise DecodeError("brak bloku loadera: plik ma mniej niż dwa bloki pwmd")
 
@@ -218,6 +247,15 @@ def extract_loader_xex(blocks: list[PwmdBlock]) -> bytes:
 
 
 def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) -> list[Segment]:
+    """
+    Dekoduje właściwą część Turbo 2000F+ NEW FORMAT do segmentów XEX.
+
+    Strumień składa się z par bloków PWMD:
+      header: start/end albo FF FF start/end dla pierwszego segmentu,
+      data:   bajty segmentu o długości wynikającej z zakresu adresów.
+
+    Koniec pliku jest oznaczony specjalnym nagłówkiem FF FF FF FF.
+    """
     segments: list[Segment] = []
     i = 0
     first_header = True
@@ -236,6 +274,8 @@ def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) 
             return segments
 
         if first_header:
+            # Pierwszy nagłówek ma prefiks FF FF, analogiczny do znacznika
+            # DOS binary/XEX. Kolejne nagłówki przechowują już tylko start/end.
             if len(header) != 6:
                 raise DecodeError(
                     f"linia {hb.line_no}: pierwszy nagłówek powinien mieć "
@@ -274,6 +314,8 @@ def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) 
         db = blocks[i + 1]
         data = verify_new_turbo_block(db, f"dane ${start_addr:04X}-${end_addr:04X}")
 
+        # Długość bloku danych nie jest zapisana osobnym polem. Wynika wprost
+        # z inkluzywnego zakresu adresów Atari: end - start + 1.
         expected_len = end_addr - start_addr + 1
         if len(data) != expected_len:
             raise DecodeError(
@@ -295,6 +337,7 @@ def decode_new_format_blocks(blocks: list[PwmdBlock], *, verbose: bool = False) 
 def print_segment(prefix: str, n: int, hb_index: int | None, db_index: int | None,
                   hb_line: int | None, db_line: int | None,
                   start_addr: int, end_addr: int, data_len: int) -> None:
+    """Wspólny, diagnostyczny wydruk segmentów dla trybu verbose."""
     seg = Segment(start_addr, end_addr, b"" * data_len)
     tags: list[str] = []
     if segment_contains_runad(seg):
@@ -335,9 +378,11 @@ def segment_contains_initad(seg: Segment) -> bool:
 
 
 def segment_contains_runad(seg: Segment) -> bool:
+    # RUNAD is the two-byte vector at $02E0-$02E1.
     return segment_contains_range(seg, 0x02E0, 0x02E1)
 
 def write_xex(path: Path, segments: list[Segment]) -> None:
+    """Zapisuje segmenty jako klasyczny Atari DOS binary/XEX."""
     out = bytearray(b"\xff\xff")
 
     for seg in segments:
@@ -353,6 +398,13 @@ def write_xex(path: Path, segments: list[Segment]) -> None:
 # ---------------------------------------------------------------------------
 
 def read_xex_segments(path: Path) -> list[Segment]:
+    """
+    Czyta Atari DOS binary/XEX do listy segmentów.
+
+    Format XEX składa się z globalnego FF FF, po którym występują rekordy
+    start/end/data. Znacznik FF FF może też pojawić się ponownie między
+    segmentami, dlatego parser toleruje go w każdym miejscu początku rekordu.
+    """
     data = path.read_bytes()
     pos = 0
     segments: list[Segment] = []
@@ -395,10 +447,12 @@ def read_xex_segments(path: Path) -> list[Segment]:
 
 
 def make_new_block(payload: bytes) -> bytes:
+    # NEW FORMAT: payload + suma modulo 256 + końcowe 00.
     return payload + bytes((checksum_mod256(payload), 0x00))
 
 
 def make_old_block(payload: bytes) -> bytes:
+    # Standardowy Turbo 2000: payload + sama suma modulo 256.
     return payload + bytes((checksum_mod256(payload),))
 
 
@@ -434,6 +488,8 @@ def default_tape_name_from_path(path: Path) -> str:
 
 
 class HexWriter:
+    """Writer generujący tekstowy .hex z liniami pwmc/pwmd."""
+
     def __init__(self, fp, *, bit0: int = DEFAULT_BIT0_PULSE, bit1: int = DEFAULT_BIT1_PULSE):
         self.fp = fp
         self.bit0 = bit0
@@ -452,6 +508,8 @@ class HexWriter:
 
     def pwmd(self, data: bytes) -> None:
         self.block_no += 1
+        # W blokach NEW FORMAT suma jest przed końcowym 00, w starych blokach
+        # jest ostatnim bajtem. Komentarz w .hex pokazuje właściwą wartość.
         chk = data[-2] if len(data) >= 2 and data[-1] == 0 else data[-1]
         self.fp.write(
             f"pwmd {self.bit0} {self.bit1} {hex_bytes(data)} "
@@ -462,7 +520,7 @@ class HexWriter:
 
 class CasWriter:
     """
-    Binary A8CAS writer for PWM chunks.
+    Binary CAS writer for PWM chunks.
 
     CAS chunk layout:
         4 bytes chunk type
@@ -524,6 +582,7 @@ class CasWriter:
 
 
 def output_format_from_args(output_path: Path, requested: str) -> str:
+    """Rozstrzyga format zapisu przy --encode."""
     if requested != "auto":
         return requested
     suffix = output_path.suffix.lower()
@@ -533,6 +592,7 @@ def output_format_from_args(output_path: Path, requested: str) -> str:
 
 
 def open_output_writer(output_path: Path, output_format: str):
+    """Otwiera plik wyjściowy i dobiera writer zgodny z wybranym formatem."""
     if output_format == "hex":
         fp = output_path.open("w", encoding="ascii", newline="\n")
         return fp, HexWriter(fp)
@@ -552,11 +612,19 @@ def write_encoded_file(
     loader_path: Path | None,
     verbose: bool = False,
 ) -> None:
+    """
+    Koduje segmenty XEX jako strumień Turbo 2000F+ NEW FORMAT.
+
+    Opcjonalnie poprzedza właściwy new-format standardowym blokiem nazwy i
+    blokiem loadera, żeby uzyskać taśmę podobną do oryginalnych nagrań.
+    """
     fp, w = open_output_writer(output_path, output_format)
     with fp:
         w.header(title)
 
         if loader_path is not None:
+            # Loader jest zwykłym blokiem danych Turbo 2000, więc musi zmieścić
+            # się w pojedynczym standardowym rekordzie 3072 bajtów.
             name = tape_name if tape_name is not None else default_tape_name_from_path(output_path)
             loader_xex = loader_path.read_bytes()
 
@@ -595,6 +663,7 @@ def write_encoded_file(
                 header_payload = put_u16le(seg.start) + put_u16le(seg.end)
 
             w.pwmd(make_new_block(header_payload))
+            # Po nagłówku idzie krótki pilot i blok danych tego samego segmentu.
             w.pwmc(DEFAULT_PWM_PILOT_PULSE, 11)
             w.pwmd(make_new_block(seg.data))
 
@@ -607,6 +676,7 @@ def write_encoded_file(
 
 
 def encode_command(args: argparse.Namespace) -> int:
+    """Obsługa trybu XEX -> HEX/CAS."""
     segments = read_xex_segments(args.input)
     output_format = output_format_from_args(args.output, args.format)
     write_encoded_file(
@@ -629,6 +699,7 @@ def encode_command(args: argparse.Namespace) -> int:
 
 
 def decode_command(args: argparse.Namespace) -> int:
+    """Obsługa trybu HEX -> XEX."""
     blocks = parse_pwmd_blocks(args.input)
 
     if args.verbose:
@@ -646,6 +717,8 @@ def decode_command(args: argparse.Namespace) -> int:
             )
 
     if args.skip_loader:
+        # Po odrzuceniu dwóch starych bloków reszta strumienia powinna zaczynać
+        # się już od pierwszego nagłówka NEW FORMAT.
         if len(blocks) < 3:
             raise DecodeError("--skip-loader: plik ma mniej niż trzy bloki pwmd")
 
@@ -680,7 +753,7 @@ def decode_command(args: argparse.Namespace) -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        description="Decode/encode Turbo 2000F+ new format a8cas .hex/.cas and Atari DOS binary/XEX."
+        description="Decode/encode Turbo 2000F+ new format .hex/.cas and Atari DOS binary/XEX."
     )
     ap.add_argument("input", type=Path, help="wejściowy .hex dla dekodowania albo .xex dla --encode")
     ap.add_argument("output", type=Path, help="wyjściowy .xex dla dekodowania albo .hex/.cas dla --encode")
@@ -688,7 +761,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--encode",
         action="store_true",
-        help="koduj XEX/DOS binary do a8cas .hex/.cas Turbo 2000F+ new format",
+        help="koduj XEX/DOS binary do .hex/.cas Turbo 2000F+ new format",
     )
     ap.add_argument(
         "--format",
