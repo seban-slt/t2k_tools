@@ -1,2 +1,3 @@
 tests/fixtures/*.xex
 tests/output/
+t2k_new_format_loader/examples/
