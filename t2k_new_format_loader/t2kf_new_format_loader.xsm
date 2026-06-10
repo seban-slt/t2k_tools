@@ -16,7 +16,6 @@
 ;  - KSO support added (auto detection of KSO Turbo 2000 interface)
 ;
 ; TODO:
-;  - add auto-detection of K.S.O. interface (JOY #2)
 ;
 
 ; system equates

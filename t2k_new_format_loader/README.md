@@ -17,6 +17,21 @@ z opcją `--add-loader`.
 
 ---
 
+## Historia
+
+Oryginalna, częściowo niedopracowana wersja loadera została pozyskana z kasety
+zapisanej w Turbo 2000F+ NEW FORMAT. Przebieg odzyskiwania i analizy tego
+materiału został opisany w wątku na forum Atari Area:
+
+- [opis walki z kasetą - część 1](https://www.atari.org.pl/forum/viewtopic.php?pid=325359#p325359)
+- [opis walki z kasetą - część 2](https://www.atari.org.pl/forum/viewtopic.php?pid=325483#p325483)
+- [opis walki z kasetą - część 2.5](https://www.atari.org.pl/forum/viewtopic.php?pid=325568#p325568)
+
+Obecna wersja w tym katalogu jest uporządkowaną i rozwijaną wersją tego
+loadera, dostosowaną do użycia z narzędziem `t2k_new_format.py`.
+
+---
+
 ## Zastosowanie
 
 Loader obsługuje właściwe bloki danych zapisane w Turbo 2000F+ NEW FORMAT.
@@ -60,9 +75,14 @@ dane segmentu
 Pierwszy nagłówek jest poprzedzony długim sygnałem pilotującym i ma postać:
 
 ```text
-3584 impulsy pilota
+długi pilot
 FF FF start_lo start_hi end_lo end_hi checksum 00
 ```
+
+Opis z Atariki podaje w tym miejscu `3584` impulsy pilota, prawdopodobnie na
+podstawie starych zapisów taśmowych. Encoder `t2k_new_format.py` używa
+znormalizowanego zapisu zgodnego z generowanymi plikami `.hex/.cas`: przed
+pierwszym nagłówkiem zapisuje długi pilot (3072 impulsy) jako `pwmc 48 3072`.
 
 Po nim występuje krótki pilot i blok danych:
 
@@ -104,11 +124,18 @@ Loader odczytuje te nagłówki, ładuje dane pod wskazane adresy, wykonuje wekto
 `INITAD`, jeśli został ustawiony, a po znaczniku końca danych uruchamia program
 przez `RUNAD`.
 
+> [!NOTE]
+> Ten format średnio sprawdza się przy plikach `.xex` zawierających bardzo dużo
+> krótkich segmentów danych. Dotyczy to np. plików potraktowanych tzw.
+> "Zagęszczaczem" Dariusza Rogozińskiego (IRON SOFT). Przy dużej liczbie
+> segmentów pomiędzy kolejnymi blokami pojawia się dużo impulsów
+> synchronizujących, co bezpośrednio wydłuża czas ładowania.
+
 ---
 
 ## Budowanie
 
-Do zbudowania loadera potrzebny jest assembler `xasm`.
+Do zbudowania loadera potrzebny jest assembler [XASM](https://github.com/pfusik/xasm).
 
 ```bash
 make xsm
@@ -123,7 +150,7 @@ Uruchomienie loadera w emulatorze:
 make run
 ```
 
-Reguła `run` używa emulatora `atari800`.
+Reguła `run` używa emulatora [atari800](https://atari800.github.io/).
 
 ---
 
@@ -133,9 +160,25 @@ Reguła `run` używa emulatora `atari800`.
 - `MEMLO` dla tej wersji wynosi `$08BA`. Jest to najniższy adres, od którego
   loader może bezpiecznie ładować właściwą binarkę `.xex`; segmenty ładowanego
   programu powinny zaczynać się od `$08BA` lub wyżej.
-- Loader początkowo lokuje się od $4000, a po uruchomieniu relokuje swój kod w dolny obszar pamięci Atari (od $0700). Takie zachowanie loadera powinno pozwolić na załadowanie go z praktycznie dowolnego systemu/nośnika/medium
-- Aktualna wersja obsługuje interfejsy Turbo 2000F+, KSO Turbo 2000, AST/ATT/UM oraz
-  Blizzard Turbo (czysto eksperymentalnie).
+- Loader początkowo lokuje się od `$4000`, a po uruchomieniu relokuje swój kod
+  w dolny obszar pamięci Atari, od `$0700`. Takie zachowanie powinno pozwolić
+  na załadowanie loadera z praktycznie dowolnego systemu, nośnika lub medium.
+- Oryginalny loader działał tylko z systemem Turbo 2000F, czyli z
+  magnetofonem/interfejsem przełączanym ręcznie między trybem `Turbo` i
+  `Normal`.
+- W tej wersji dodano obsługę automatycznego włączania wybranych interfejsów
+  turbo przez sterowanie linią SIO `COMMAND`. Powinno to pozwolić na pracę z
+  magnetofonami wyposażonymi w turbo AST, ATT, UM oraz Turbo 2000
+  (wrocławskie).
+- Podczas odczytu loader przełącza również stan linii SIO `DATA_OUT`. Powinno
+  to uaktywniać interfejsy typu Blizzard oraz podobne rozwiązania, w których
+  tryb `Turbo`/`Normal` wybierany jest na podstawie stanu tej linii.
+- Aktualna wersja obsługuje interfejsy Turbo 2000F+ oraz KSO Turbo 2000
+  (sprawdzono na realnym sprzęcie). Loader powinien działać również z
+  magnetofonami wyposażonymi w interfejsy AST/ATT/UM, wrocławskie/czeskie
+  Turbo 2000 oraz Blizzard Turbo.
+- Przy starcie loader próbuje wykryć, czy dane z turbo przychodzą przez linię
+  SIO `DATA IN`, czy przez port joysticka #2 używany przez KSO Turbo 2000.
 - Szczegóły zmian wersji znajdują się w komentarzu na początku pliku
   `t2kf_new_format_loader.xsm`.
 
@@ -143,6 +186,5 @@ Reguła `run` używa emulatora `atari800`.
 
 ## TODO
 
-- Opisać dokładnie format bloków obsługiwanych przez loader.
-- Opisać wymagania pamięciowe i używane wektory systemowe.
-- Dodać opis procesu budowania oraz zależności narzędziowych.
+- Wykonać testy na realnych magnetofonach wyposażonych w turbo: AST/ATT/UM,
+  wrocławskie/czeskie Turbo 2000 oraz Blizzard Turbo.
