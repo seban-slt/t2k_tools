@@ -1,22 +1,22 @@
 ; *** Turbo 2000F - New Format Loader ***
 ;
-; this optimized version done by Seban/Slight, summer 2026
+; this optimized version was done by Seban/Slight, summer 2026
 ;
-; - based on original Turbo 2000F "new format loader" 
-; - this loader is located at lower memory region ($700)
+; - based on original Turbo 2000F "new format loader"
+; - this loader is located in the lower memory region ($700)
 ;
 ; v.0.1 - MemLO is at $8A8
 ;  - initial version of the loader
 ;
 ; v.0.2 - MemLO is at $8AE
-;  - (SIO COMMMAND line is activated during read to ENABLE some turbo interfaces)
+;  - (SIO COMMAND line is activated during read to enable some turbo interfaces)
 ;
 ; v.0.3 - MemLO is at $8BA
 ;  - Blizzard Turbo interface support (interface enabled by switching DATA_OUT to "0" during read operation)
 ;  - KSO support added (auto detection of KSO Turbo 2000 interface)
 ;
 ; TODO:
-;  - add auto-detection of K.S.O. interface (JOY #2) 
+;  - add auto-detection of K.S.O. interface (JOY #2)
 ;
 
 ; system equates
@@ -121,26 +121,26 @@ read_error	jsr	tape_stop
 
 		lda	#$21			; narrow screen
 		sta	$22f
-		sta	$26f			; disable any GTIA mode if enabled! (some files sets GTIA modes during loading!)
+		sta	$26f			; disable any GTIA mode if enabled! (some files set GTIA modes during loading!)
 
-		lda	#<err_dl		; setup Display-List
+		lda	#<err_dl		; set up Display List
 		sta	$230
 		lda	#>err_dl
 		sta	$231
 
-?err_lp		lda	$d40b			; color bar over the "* LOAD ERROR *" message
+?err_lp		lda	$d40b			; color bar around the "* LOAD ERROR *" message
 		asl	@
 		sta	$d016
 		jmp	?err_lp
 
 ; subroutine loads data segment described by header
 
-load_segment	lda	buff_hdr+0,x		; setup load start address
+load_segment	lda	buff_hdr+0,x		; set up load start address
 		sta	BUFRLO
 		lda	buff_hdr+1,x
 		sta	BUFRHI
 		
-		lda	buff_hdr+2,x		; setup load end address
+		lda	buff_hdr+2,x		; set up load end address
 		sta	BFENLO
 		lda	buff_hdr+3,x
 		sta	BFENHI
@@ -164,7 +164,7 @@ load_N_bytes	clc				; calculate end address from byte count
 		tya
 		rts
 
-segment_init	lda	INITAD			;  check whether INITAD is set
+segment_init	lda	INITAD			; check whether INITAD is set
 		ora 	INITAD+1
 		beq	?no_init
 
@@ -213,13 +213,13 @@ tape_stop	lda	SDMCTL			; restore screen DMA
 
 set_ctrl	stx	PACTL			; motor off + DATA reg. select
 ?cmod0		sta	PBCTL			; and deactivate CMD line (disable turbo interface in SIO mode)
-?cmod1		sty	SKCTL			; ... place holder, self mod code will be used when loader in KSO mode.
+?cmod1		sty	SKCTL			; ... placeholder, self-modifying code will be used when loader is in KSO mode.
 	
 		rts
 
 
-init_read	tsx				; get actual stack pointer
-		inx				; adjust 
+init_read	tsx				; get current stack pointer
+		inx				; adjust
 		inx
 		stx	STACK_PTR		; store
 		
@@ -228,7 +228,7 @@ init_read	tsx				; get actual stack pointer
 		rts
 
 err_break	ldy	#$80			; assume status = $80 (user BREAK)
-;		jmp	restore_stack		; !!! not needed when restore_stack is subroutine is below.
+;		jmp	restore_stack		; !!! not needed because restore_stack is the subroutine below.
 
 restore_stack	ldx	#0
 		txs
@@ -250,20 +250,20 @@ sync_wait	ldy	#$02			; Warning! Remember SET_REQ_SYNC is defined as sync_wait+1
 ?tmod1		bit	SKSTAT
 		bne	?wait_one_lp
 
-		ldx	#$00			; clear pulse len count (X reg.)
+		ldx	#$00			; clear pulse length counter (X reg.)
 		stx 	COLBK			; set black background color
 
 ?wait_zero_lp	inx
-		bmi	sync_wait		; pulse to long! re-sync!
+		bmi	sync_wait		; pulse too long! re-sync!
 		
 ?tmod2		bit	SKSTAT
 		beq	?wait_zero_lp		; loop when logic "0" is present on DATA_IN
 
-		lda	#$38			; red bars when sync loop
+		lda	#$38			; red bars during sync loop
 		sta	COLBK
 
 		cpx	#$36			; check "sync" pulse duration
-		bcc	sync_wait		; <$36, not sync pulse! restart sync loop! (old bcc read_block) 
+		bcc	sync_wait		; <$36, not sync pulse! restart sync loop! (old bcc read_block)
 
 		dey
 		bne	?sync_loop
@@ -272,7 +272,7 @@ sync_wait	ldy	#$02			; Warning! Remember SET_REQ_SYNC is defined as sync_wait+1
 
 blk_read_loop	jsr	get_byte		; read block byte
 		
-		lda	STATUS			; gett byte value
+		lda	STATUS			; get byte value
 		sta	(BUFRLO),Y		; store in buffer
 		
 		clc				; update checksum
@@ -289,11 +289,11 @@ blk_read_loop	jsr	get_byte		; read block byte
 		sbc	BFENHI
 		bcc	blk_read_loop
 		
-		jsr	get_byte		; read CRC byte
+		jsr	get_byte		; read checksum byte
 		
 		ldy	#$8F			; assume status = $8f -> (#143 - CRC error)
 		
-		lda	STATUS			; CRC check
+		lda	STATUS			; checksum check
 		cmp	CHKSUM
 		bne	restore_stack		; checksum error
 		
@@ -302,7 +302,7 @@ blk_read_loop	jsr	get_byte		; read block byte
 
 ; ------------------------------------------------------------------------------
 ;
-; get_byte 
+; get_byte
 ;
 
 get_byte	ldy	#$08			; bits to read!
@@ -314,13 +314,13 @@ get_byte	ldy	#$08			; bits to read!
 ?tmod4		bit	SKSTAT			; check SERIAL_IN state
 		bne	?wait_one_lp		; loop when "1"
 	
-; failing edge detected ( ~~~\___)
+; falling edge detected ( ~~~\___)
 
 		ldx	#$00			; clear pulse count (X reg.)
 		stx	COLBK			; black border color
 
 ?wait_zero_lp	inx				; inc. pulse len. counter
-		bmi	?err_140		; >127 --> pulse to long! (error 140)
+		bmi	?err_140		; >127 --> pulse too long! (error 140)
 		
 ?tmod5		bit	SKSTAT
 		beq	?wait_zero_lp		; wait for "1" (rising edge again)
@@ -334,7 +334,7 @@ get_byte	ldy	#$08			; bits to read!
 		ror	ERRNO			; 1st non-sync pulse means no more sync pulses allowed!
 		
 		cpx	#$1C			; check pulse len (<$1c means 0, otherwise 1)
-		rol	STATUS			; shift out the comparison result (carry bit) 
+		rol	STATUS			; shift out the comparison result (carry bit)
 
 		dey				; decrement bit-loop counter
 		bne	?wait_one_lp
@@ -343,7 +343,7 @@ get_byte	ldy	#$08			; bits to read!
 ?exit_brk	jmp	err_break
 
 ?sync_allowed	bit	ERRNO			; check if SYNC allowed
-		bmi	?wait_one_lp		; 7th bit of ERRNO set? still in SYNC state! repeat the loop!	; L096F
+		bmi	?wait_one_lp		; bit 7 of ERRNO set? still in SYNC state! repeat the loop!	; L096F
 
 ?err_140	ldy	#$8C			; error #140 (invalid pulse detected)
 		jmp	restore_stack
@@ -351,7 +351,7 @@ get_byte	ldy	#$08			; bits to read!
 buff_hdr	dta	$00,$00,$00,$00,$00,$00	; buffer for header data
 
 ;			  0123456789abcdef
-err_msg		dta	d' * LOAD ERROR * ' 
+err_msg		dta	d' * LOAD ERROR * '
 err_dl		dta	$70,$70,$70,$47,a(err_msg),$41,a(err_dl)
 
 ldr_reloc_end	equ	*
@@ -362,7 +362,7 @@ ldr_neg_size	equ	[$10000-ldr_size]
 
 ; -----------------------------------------------------------------------------
 ;
-; main code start here
+; main code starts here
 
 main		ldy	#28			; set position for MEMLO value print-out
 
@@ -377,7 +377,7 @@ main		ldy	#28			; set position for MEMLO value print-out
 		dey
 		bpl	?cmsg
 
-; relocate the loader do the dest. address
+; relocate the loader to the destination address
 
 		mwa	#[ldr_neg_size] $30	; load loader size
 		mwa	#[ldr_load_area] $32	; load src address
@@ -386,9 +386,9 @@ main		ldy	#28			; set position for MEMLO value print-out
 		ldy	#0			; clear Y reg.
 
 ?cpl		lda	($32),y			; load byte from source pointer
-		sta	($34),y			; stora at dest.
+		sta	($34),y			; store at destination
 
-		inc	$32			; incr. scr pointer
+		inc	$32			; incr. src pointer
 		bne	*+4
 		inc	$33
 
@@ -420,7 +420,7 @@ main		ldy	#28			; set position for MEMLO value print-out
 		lda	#$3c
 		sta	PACTL
 
-		ldx	#$ff			; # of pulsed needed to detection of KSO.
+		ldx	#$ff			; number of pulses needed to detect KSO
 
 ?det_lp		lda	PORTA
 		and	#$80
@@ -436,7 +436,7 @@ main		ldy	#28			; set position for MEMLO value print-out
 ?kso_det	txa
 		bne	?no_kso
 
-		jsr	setup_kso		; patch the loader for KSO usage.
+		jsr	setup_kso		; patch the loader for KSO usage
 		jmp	?exec_loader
 
 ?no_kso		lda	#$38			; restore PORTA state (if no KSO detected)
@@ -449,7 +449,7 @@ main		ldy	#28			; set position for MEMLO value print-out
 ?exec_loader	jmp	mem_clr			; execute relocated code
 
 
-; subroutine patches the loader for KSO interface
+; this subroutine patches the loader for the KSO interface
 
 setup_kso	lda	#$60			; change port values for KSO
 		ldx	#$38
@@ -471,7 +471,7 @@ setup_kso	lda	#$60			; change port values for KSO
 		lda	#$d3			
 		sta	set_ctrl?cmod1+2	; HI-Byte adr.
 
-		lda	#$80			; bit to check (bit #7 have $80 mask)
+		lda	#$80			; bit to check (bit 7 has the $80 mask)
 		sta	sync_wait?tmod0+1
 		sta	get_byte?tmod3+1
 
@@ -491,7 +491,7 @@ setup_kso	lda	#$60			; change port values for KSO
 
 ; -----------------------------------------------------------------------------
 ;
-; subroutine prints hex number on info line
+; this subroutine prints a hex number on the info line
 ;
 
 put_hex		pha				; save value on stack
@@ -526,8 +526,8 @@ info_line	dta	d' T2KF+ loader v.0.3  MemLO:$____  -SSL- '*
 ;
 ; this procedure clears memory from MemLO (end of loader location) to $BBFF
 ;
-; procedure is relocated to the line printer buffer during
-; the loader initialization and execution
+; this procedure is relocated to the line printer buffer during
+; loader initialization and execution
 ;
 
 mem_clr_loc	equ	*
