@@ -12,6 +12,7 @@ To repozytorium będzie stopniowo się rozrastać — w miarę odnajdywania i po
 
 - [T2K_EXTRACT](#t2k_extract)
 - [T2K_NEW_FORMAT](#t2k_new_format)
+  - [New Format loader](#new-format-loader)
 
 ---
 
@@ -182,11 +183,11 @@ Skrypt może być użyty m.in. do:
 - Loader dodawany przez `--add-loader` musi obsługiwać ładowanie danych w Turbo 2000F+ NEW FORMAT. Dodanie zwykłego, standardowego loadera Turbo 2000 nie ma sensu, ponieważ nie odczyta on dalszych bloków zapisanych w new format.
 - Technicznie plik loadera musi zaczynać się od nagłówka `FF FF` i mieścić się w jednym standardowym bloku Turbo 2000, czyli maksymalnie 3072 bajtach.
 
-### New format loader
+### New Format loader
 
-Źródła loadera obsługującego ładowanie danych w Turbo 2000F+ NEW FORMAT znajdują się w podkatalogu `t2k_new_format_loader/`. Loader ten jest przeznaczony do użycia z opcją `--add-loader` podczas kodowania pliku `.xex` do `.hex` lub `.cas`.
+Źródła loadera obsługującego ładowanie danych w Turbo 2000F+ NEW FORMAT znajdują się w podkatalogu [`t2k_new_format_loader/`](t2k_new_format_loader/). Loader ten jest przeznaczony do użycia z opcją `--add-loader` podczas kodowania pliku `.xex` do `.hex` lub `.cas`.
 
-Dokładniejszy opis samego loadera zostanie umieszczony w osobnym pliku `README.md` w katalogu `t2k_new_format_loader/`.
+Dokładniejszy opis samego loadera znajduje się w osobnym pliku [`README.md`](t2k_new_format_loader/README.md) w katalogu `t2k_new_format_loader/`.
 
 ### Opcje:
 
