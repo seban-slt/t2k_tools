@@ -156,7 +156,7 @@ Reguła `run` używa emulatora [atari800](https://atari800.github.io/).
 
 ## Uwagi techniczne
 
-- Aktualna wersja loadera: `v.0.3`.
+- Aktualna wersja loadera: `v.0.4`.
 - `MEMLO` dla tej wersji wynosi `$08BA`. Jest to najniższy adres, od którego
   loader może bezpiecznie ładować właściwą binarkę `.xex`; segmenty ładowanego
   programu powinny zaczynać się od `$08BA` lub wyżej.
