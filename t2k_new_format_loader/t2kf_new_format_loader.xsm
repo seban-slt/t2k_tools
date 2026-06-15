@@ -15,6 +15,9 @@
 ;  - Blizzard Turbo interface support (interface enabled by switching DATA_OUT to "0" during read operation)
 ;  - KSO support added (auto detection of KSO Turbo 2000 interface)
 ;
+; v.0.4 - MemLO is at $8BA
+;  - clear screen added after loader startup (editor re-open)
+;
 ; TODO:
 ;
 
@@ -370,6 +373,8 @@ main		ldy	#28			; set position for MEMLO value print-out
 		lda	#<ldr_reloc_end		; print Lo-byte
 		jsr	put_hex
 
+		jsr	edt_init
+
 		ldy	#39
 ?cmsg		lda	info_line,y		; copy message line...
 		sta	($58),y			; to screen memory
@@ -517,8 +522,20 @@ put_hex		pha				; save value on stack
 		iny				; advance offset
 		rts
 
+; close & open the screen editor ("E:")
+
+edt_init	ldx	#2			; close vector location
+		jsr	?edt
+		ldx	#0			; open vector location
+
+?edt		lda	$e401,x			; get hi-byte of address from editor vector call table
+		pha				; push to the stack
+		lda	$e400,x			; get lo-byte of address from editor vector call table
+		pha				; push to the stack
+		rts
+
 ;			  0123456789012345678901234567890123456789
-info_line	dta	d' T2KF+ loader v.0.3  MemLO:$____  -SSL- '*
+info_line	dta	d' T2KF+ loader v.0.4  MemLO:$____  -SSL- '*
 
 
 ; -----------------------------------------------------------------------------

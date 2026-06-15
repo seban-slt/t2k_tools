@@ -7,7 +7,7 @@ FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 OUTPUT_DIR="$SCRIPT_DIR/output"
 
 TOOL="$REPO_DIR/t2k_new_format.py"
-LOADER="${LOADER:-$FIXTURES_DIR/t2kf_new_format_ldr_v03.xex}"
+LOADER="${LOADER:-$FIXTURES_DIR/t2kf_new_format_ldr.xex}"
 PYTHON="${PYTHON:-python3}"
 CHKXEX="${CHKXEX:-chkxex}"
 
